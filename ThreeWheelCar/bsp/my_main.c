@@ -82,10 +82,10 @@ uint8_t CarVelocity = 0;
 uint8_t whichFuction = IDLE;
 //基础1
 //基础2
-uint8_t blueEN = 0;
-uint8_t yellowEN = 0;
+uint8_t blueCircleEN = 0;
+uint8_t yellowTriEN = 0;
 uint8_t VelocitySel = 0;
-uint8_t FindBlueYellowEN = 0;
+uint8_t FindBlueyellowTriEN = 0;
 //基础3
 uint8_t stop_10sEN= 0;
 //发挥1
@@ -109,18 +109,31 @@ void Set_Pwm(int Moto1,int Moto2);	//控制PWM最终输出
 u8 test111 = 0;
 uint8_t page = 0;
 u8 select_key =0;
-void FuctionBase2(void)
+void FuctionBase1(void)
 {
 		switch(RRRXnum)
 		{
+			case LONELINE:countLongline++;if(countLongline == 2) {/*stop,*/ countLongline = 0;}//stop 
+				break;
+			default:
+				break;
+		}
+		RRRXnum = RXIDLE;
+}
+void FuctionBase2(void)
+{
+	
+		switch(RRRXnum)
+		{
 			case LONELINE:
-										countLongline++;if(countLongline == 3) {/*stop,*/ countLongline = 0;FindBlueYellowEN = 0;}
+										countLongline++;if(countLongline == 3) {/*stop,*/ countLongline = 0;VelocitySel =0;}
+										FindBlueyellowTriEN = 0;
 										countShortline = 0;
 										if(countLongline == 2)
 										{
-											if(!blueEN && !yellowEN) VelocitySel = 1;//A<10s,B>20s
-											else if(blueEN && !yellowEN) VelocitySel = 2;//A+B<20s,C>30s	
-											else if(!blueEN && yellowEN) VelocitySel = 3;//A+B>30s,C<20s		
+											if(!blueCircleEN && !yellowTriEN) VelocitySel = 1;//A<10s,B>20s
+											else if(blueCircleEN && !yellowTriEN) VelocitySel = 2;//A+B<20s,C>30s	
+											else if(!blueCircleEN && yellowTriEN) VelocitySel = 3;//A+B>30s,C<20s		
 											
 											switch(VelocitySel){//速度3挡
 												case 1:										
@@ -131,12 +144,13 @@ void FuctionBase2(void)
 													break;
 												default:
 													break;
-											}												
+											}
+											blueCircleEN = 0;yellowTriEN = 0;											
 										}
-										blueEN = 0;yellowEN = 0;
+
 				break;
 			case SHORTLINE:
-										countShortline++;if(countShortline == 4) FindBlueYellowEN = 1;
+										countShortline++;if(countShortline == 4) FindBlueyellowTriEN = 1;
 										if(countShortline == 1 && VelocitySel != 0){//B
 														switch(VelocitySel){//速度3挡
 															case 1:										
@@ -162,34 +176,78 @@ void FuctionBase2(void)
 															}
 														}
 				break;
-			case BLUECIRCLE:if(FindBlueYellowEN) blueEN = 1;break;
-			case YELLOWTRI:if(FindBlueYellowEN) yellowEN = 1;break;																				
+			case BLUECIRCLE:if(FindBlueyellowTriEN) blueCircleEN = 1;break;
+			case YELLOWTRI:if(FindBlueyellowTriEN) yellowTriEN = 1;break;			
+			default: break;
 		}
 		RRRXnum = RXIDLE;					
 }
+void FuctionBase3(void)
+{
+		switch(RRRXnum)
+		{
+			case LONELINE:
+										countLongline++;if(countLongline == 3) {/*stop,*/ countLongline = 0;}
+										countShortline = 0;
+										if(countLongline == 2) {/*stop_10s,*/ }
+										break;
+			case SHORTLINE:countShortline++;
+										if((countLongline == 1) && (countShortline == 1)) {/*stop_10s,*/ }										
+										break;	
+			default: break;
+		}
+		RRRXnum = RXIDLE;	
+}
+void FuctionImprove1(void)//一圈
+{
+		switch(RRRXnum)
+		{
+			case LONELINE:
+										countShortline = 0;
+										tx_lcd = 5;//tx_lcd 即其余线清0，只留长线
+										break;
+			case SHORTLINE:countShortline++;
+										tx_lcd = countShortline;					
+										break;	
+			case REDCIRCLE:/*stop*/ break;
+			default: break;
+		}
+		RRRXnum = RXIDLE;	
+}
+void FuctionImprove2(void)
+{
+		switch(RRRXnum)
+		{
+			case REDCIRCLE:/*stop*/ break;
+			default: 
+				CarVelocity = BaseCarVelocity + RatioCarVelocity * RRRXnum;
+			break;
+		}
+		RRRXnum = RXIDLE;	
+}
+void FuctionImprove3(void)
+{
+		switch(RRRXnum)
+		{
+			case LONELINE:countLongline++;if(countLongline == 2) {/*stop,*/ countLongline = 0;}//先假设跑一圈停止
+										break;
+
+			case REDTRI:/*转向*/ break;
+			default: break;
+		}
+		RRRXnum = RXIDLE;	
+}
+
 void FuctionSelect(void)
-{/****基础1********/
+{
 	switch (whichFuction){
-		case IDLE:
-					break;
-		case BASE_1:/*********基础1********/
-								switch(RRRXnum)
-								{
-									case LONELINE://stop 
-										break;
-									default:
-										break;
-								}
-								RRRXnum = RXIDLE;
-								break;
+		case IDLE:break;
+		case BASE_1:FuctionBase1();break;
 		case BASE_2:FuctionBase2();break;
-		case IMPROVE_1:/**************基础3***********/
-				
-					break;		
-		case IMPROVE_2:
-					break;		
-		case IMPROVE_3:
-					break;	
+		case BASE_3:FuctionBase3();break;
+		case IMPROVE_1:FuctionImprove1();break;		
+		case IMPROVE_2:FuctionImprove2();break;		
+		case IMPROVE_3:FuctionImprove3();break;	
 		default:
 					break;
 	}
@@ -255,10 +313,6 @@ void UART_Proc()
 			HAL_TIM_PWM_Stop(&htim1,TIM_CHANNEL_1);
 			HAL_TIM_PWM_Stop(&htim8,TIM_CHANNEL_1);
 		}
-		
-		
-		
-
 
 }
 
