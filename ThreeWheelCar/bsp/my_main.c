@@ -37,7 +37,7 @@ float test_num_GD= 0.02;
  float Encoder_Integral;	 //编码器数值积分
  #define kp_val 4.6
  float kp=kp_val,ki=kp_val/200;
- int AimVelocity = 1000;//**************************************//
+ int AimVelocity = 1000;
  uint8_t SpeedMode = 0;
  
  
@@ -548,9 +548,9 @@ void MediumVelocity(void)
 }
 void FastVelocity(void)
 {
-		AimVelocity	 = 0;
-		Gray_KP = 0;
-		Gray_KD = 0;
+		AimVelocity	 = 1600;
+		Gray_KP = 38;
+		Gray_KD = -0.20;	
 }
 /********************************************************************* 
 速度环PI控制器：Kp*Ek+Ki*Ek_S(Ek_S：偏差的积分)
