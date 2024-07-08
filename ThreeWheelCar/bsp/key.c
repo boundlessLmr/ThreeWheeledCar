@@ -23,7 +23,7 @@ void key_serv()
 	if(key_sta!=0)
 	{
 		bkey[key_sta].age++;
-		if(bkey[key_sta].age>1)bkey[key_sta].short_flag=1;
+		if(bkey[key_sta].age==2)bkey[key_sta].short_flag=1;
 
 	}
 	else
@@ -38,7 +38,7 @@ void key_serv_long()
 	if(key_sta!=0)
 	{
 		bkey[key_sta].age++;
-		if(bkey[key_sta].age>1) bkey[key_sta].press=1;
+		if(bkey[key_sta].age==2) bkey[key_sta].press=1;
 	}
 	else
 	{

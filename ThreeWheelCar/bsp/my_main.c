@@ -24,21 +24,20 @@ u8 Start_Flag=0;//系统初始化完成标志
 #define TIAO_VELp          1
 #define TIAO_GP            2
 #define TIAO_GD            3
+#define NO_TIAO						 4
 
-
-uint8_t Tiao_Who = TIAO_GD;
+uint8_t Tiao_Who = NO_TIAO;
 float test_num_VELp = 0.1;
 float test_num_GP = 1;
-float test_num_GD= 1;
-
-
+float test_num_GD= 0.02;
+  
 
 //----速度环-----//
  float Velocity,Encoder_Err,Encoder,Encoder_last,Movement=0; //速度，误差，编码器
  float Encoder_Integral;	 //编码器数值积分
  #define kp_val 4.6
  float kp=kp_val,ki=kp_val/200;
- int AimVelocity = 600;
+ int AimVelocity = 1000;//**************************************//
  uint8_t SpeedMode = 0;
  
  
@@ -46,13 +45,15 @@ float test_num_GD= 1;
 uint8_t Black_miss_flag = 0;
 int last_bias;
 int8_t Scale=0;
-int Gray_KP=60,Gray_KD=-16;
+int Gray_KP=25;
+float Gray_KD=-0.14;
+// 400,GP 25 , GD 0.14
+//1000,GP 30,  GD 0.22
 
 //计算距离和时间
 double motorA_speed,motorB_speed;
 double total_time;
 double distance;
- 
 //-----------具体功能控制-----------
 
 char Usart2_RRRX_Buf[50];  //串口接收数据缓存buf
@@ -67,10 +68,13 @@ char Usart2_TTTX_Buf[50];  //串口发送数据缓存buf
 #define BLUECIRCLE					15
 #define YELLOWTRI						16
 uint8_t RRRXnum = RXIDLE;
+uint8_t RRRXnum_reg = RXIDLE;
 uint8_t countLongline = 0;
 uint8_t countShortline = 0;
 uint8_t stopEN = 0;
-uint8_t CarVelocity = 0;
+
+uint8_t OKOKBegin = 0;
+
 
 #define IDLE              0
 #define BASE_1            1
@@ -97,23 +101,17 @@ uint8_t RatioCarVelocity = 0;
 //发挥3
 uint8_t turnEN = 0;
 
-
-//----子函数声明-----
-void UART_Proc(void);
-int Vertical(float Angle,float Gyro_Y);			 				//直立环
-int GetVelocity(int Encoder_left,int Encoder_right);				//速度环
-u8 Stop(signed int angle);    		//倒下保护
-void Limit(int *motoA,int *motoB);  //电机速度限幅
-void Set_Pwm(int Moto1,int Moto2);	//控制PWM最终输出
-
 u8 test111 = 0;
-uint8_t page = 0;
-u8 select_key =0;
+
+void FuctionIDLE(void)
+{
+	MediumVelocity();
+}
 void FuctionBase1(void)
 {
 		switch(RRRXnum)
 		{
-			case LONELINE:countLongline++;if(countLongline == 2) {/*stop,*/ countLongline = 0;}//stop 
+			case LONELINE:countLongline++;if(countLongline == 2) {VelocityStop();countLongline = 0;}//stop 
 				break;
 			default:
 				break;
@@ -126,7 +124,7 @@ void FuctionBase2(void)
 		switch(RRRXnum)
 		{
 			case LONELINE:
-										countLongline++;if(countLongline == 3) {/*stop,*/ countLongline = 0;VelocitySel =0;}
+										countLongline++;if(countLongline == 3) {VelocityStop(); countLongline = 0;VelocitySel =0;}
 										FindBlueyellowTriEN = 0;
 										countShortline = 0;
 										if(countLongline == 2)
@@ -135,15 +133,11 @@ void FuctionBase2(void)
 											else if(blueCircleEN && !yellowTriEN) VelocitySel = 2;//A+B<20s,C>30s	
 											else if(!blueCircleEN && yellowTriEN) VelocitySel = 3;//A+B>30s,C<20s		
 											
-											switch(VelocitySel){//速度3挡
-												case 1:										
-													break;
-												case 2:
-													break;
-												case 3:
-													break;
-												default:
-													break;
+											switch(VelocitySel){//速度3挡 ///这是A段
+												case 1:MediumVelocity();break;
+												case 2:MediumVelocity();break;
+												case 3:SlowVelocity();break;
+												default:break;
 											}
 											blueCircleEN = 0;yellowTriEN = 0;											
 										}
@@ -151,30 +145,23 @@ void FuctionBase2(void)
 				break;
 			case SHORTLINE:
 										countShortline++;if(countShortline == 4) FindBlueyellowTriEN = 1;
-										if(countShortline == 1 && VelocitySel != 0){//B
+										if(countShortline == 1 ){//这是B段
 														switch(VelocitySel){//速度3挡
-															case 1:										
-																break;
-															case 2:
-																break;
-															case 3:
-																break;											
-															default:
-																break;					
+															case 1:	SlowVelocity();break;
+															case 2:MediumVelocity();break;
+															case 3:SlowVelocity();break;											
+															default:break;					
 															}
 														}
-										if(countShortline == 2 && VelocitySel != 0){//C
+										if(countShortline == 2 ){//这是C段
 														switch(VelocitySel){//速度3挡
-															case 1:										
-																break;
-															case 2:
-																break;
-															case 3:
-																break;											
-															default:
-																break;					
+															case 1:MediumVelocity();break;
+															case 2:SlowVelocity();break;
+															case 3:MediumVelocity();break;											
+															default:break;					
 															}
 														}
+										if(countShortline == 3 ) MediumVelocity();//这是D段						
 				break;
 			case BLUECIRCLE:if(FindBlueyellowTriEN) blueCircleEN = 1;break;
 			case YELLOWTRI:if(FindBlueyellowTriEN) yellowTriEN = 1;break;			
@@ -187,12 +174,12 @@ void FuctionBase3(void)
 		switch(RRRXnum)
 		{
 			case LONELINE:
-										countLongline++;if(countLongline == 3) {/*stop,*/ countLongline = 0;}
+										countLongline++;if(countLongline == 3) {VelocityStop(); countLongline = 0;}
 										countShortline = 0;
-										if(countLongline == 2) {/*stop_10s,*/ }
+										if(countLongline == 2)VelocityStop_10s();
 										break;
 			case SHORTLINE:countShortline++;
-										if((countLongline == 1) && (countShortline == 1)) {/*stop_10s,*/ }										
+										if((countLongline == 1) && (countShortline == 1))VelocityStop_10s();									
 										break;	
 			default: break;
 		}
@@ -209,7 +196,7 @@ void FuctionImprove1(void)//一圈
 			case SHORTLINE:countShortline++;
 										tx_lcd = countShortline;					
 										break;	
-			case REDCIRCLE:/*stop*/ break;
+			case REDCIRCLE:VelocityStop();break;
 			default: break;
 		}
 		RRRXnum = RXIDLE;	
@@ -218,10 +205,17 @@ void FuctionImprove2(void)
 {
 		switch(RRRXnum)
 		{
-			case REDCIRCLE:/*stop*/ break;
-			default: 
-				CarVelocity = BaseCarVelocity + RatioCarVelocity * RRRXnum;
-			break;
+			case REDCIRCLE:VelocityStop(); break;
+			case 				 1:SlowVelocity(); break;
+			case 				 2:SlowVelocity(); break;			
+			case 				 3:SlowVelocity(); break;
+			case 				 4:MediumVelocity(); break;
+			case 				 5:MediumVelocity(); break;
+			case 				 6:MediumVelocity(); break;			
+			case 				 7:FastVelocity(); break;
+			case 				 8:FastVelocity(); break;
+			case 				 9:FastVelocity(); break;	/////没有包含二维码为0的情况
+			default				:break;
 		}
 		RRRXnum = RXIDLE;	
 }
@@ -229,7 +223,7 @@ void FuctionImprove3(void)
 {
 		switch(RRRXnum)
 		{
-			case LONELINE:countLongline++;if(countLongline == 2) {/*stop,*/ countLongline = 0;}//先假设跑一圈停止
+			case LONELINE:countLongline++;if(countLongline == 2) {VelocityStop(); countLongline = 0;}//先假设跑一圈停止
 										break;
 
 			case REDTRI:/*转向*/ break;
@@ -240,8 +234,10 @@ void FuctionImprove3(void)
 
 void FuctionSelect(void)
 {
+	if(OKOKBegin == 0) return;
+	OKOKBegin = 0;
 	switch (whichFuction){
-		case IDLE:break;
+		case IDLE:FuctionIDLE();break;//慢速度运动
 		case BASE_1:FuctionBase1();break;
 		case BASE_2:FuctionBase2();break;
 		case BASE_3:FuctionBase3();break;
@@ -255,50 +251,53 @@ void FuctionSelect(void)
 
 void key_process(void)
 {
-
-	if(key_data1[0].key_return==1)//按键KEY1 
-	{													
+	if(bkey[1].short_flag == 1)
+	{
 		switch(Tiao_Who)
 		{
 			case TIAO_GP  :  Gray_KP+=test_num_GP;  break;
 			case TIAO_GD  :  Gray_KD+=test_num_GD; break;	
 			case TIAO_VELp:   kp+= test_num_VELp;ki = kp/200;break;
+			case NO_TIAO  :   AimVelocity = AimVelocity+200;break;			
+			default:break;
 		}		
-	
-		key_data1[0].key_return = 0;		
+		 bkey[1].short_flag = 0;
 	}
-	
-	else if(key_data1[1].key_return==1)//按键KEY2 坏了
-	{
-
-	
-		key_data1[1].key_return = 0;
-	}	
-	
-
-	
-	else if(key_data1[3].key_return==1)//按键KEY3
+	else if(bkey[2].short_flag == 1)
 	{
 		switch(Tiao_Who)
 		{
 			case TIAO_GP  :  Gray_KP-=test_num_GP;  break;
 			case TIAO_GD  :  Gray_KD-= test_num_GD;  break;	
 			case TIAO_VELp:   kp-= test_num_VELp;ki = kp/200;break;
-		}				
+			case NO_TIAO  :   AimVelocity = AimVelocity-200;break;
+		  default:break;
+		}					
 		
-		key_data1[3].key_return = 0;
+		 bkey[2].short_flag = 0;
 	}	
-	else if(key_data1[2].key_return==1)//按键KEY3 第4个
+	else if(bkey[4].short_flag == 1)
 	{
-		switch(Tiao_Who)
-		{
-			case TIAO_VELp:if(test_num_VELp == 0.01)test_num_VELp = 0.1;else test_num_VELp = 0.01;break;	
-			case TIAO_GP  :if(test_num_GP == 1)test_num_GP = 10;else test_num_GP = 1;break;	
-			case TIAO_GD  :break;				
-		}
+		 whichFuction++; if(whichFuction == 7) whichFuction = 0;
+
+		 bkey[4].short_flag = 0;
+	}		
+	else if(bkey[3].short_flag == 1)
+	{
+		 FuctionInit();
+		 OKOKBegin = 1;		//所有标志位都要清0
+		 sprintf(Usart2_TTTX_Buf,"1");
+		 HAL_UART_Transmit(&huart2,(uint8_t *)Usart2_TTTX_Buf,strlen(Usart2_TTTX_Buf),50);			
 		
-		key_data1[2].key_return = 0;
-	}	
+		 bkey[3].short_flag = 0;
+	}		
+	else if(bkey[1].long_flag == 1)
+	{
+		Tiao_Who++;if(Tiao_Who == 5)Tiao_Who = 1;
+		OLED_Clear();
+		
+		bkey[1].long_flag = 0;
+	}
 }
 /**************************************************************************
 函数功能：通过串口测试数据
@@ -307,7 +306,8 @@ void UART_Proc()
 {
   if((uwTick - uwTick_UART) < 200) return;//return;结束函数
 	uwTick_UART = uwTick;
-	
+//	sprintf(Usart2_TTTX_Buf,"1");
+//  HAL_UART_Transmit(&huart2,(uint8_t *)Usart2_TTTX_Buf,strlen(Usart2_TTTX_Buf),50);	
 		if((Moto1>=7000 || Moto1<=-7000) && (Moto2 >= 7000 || Moto2<=-7000))
 		{
 			HAL_TIM_PWM_Stop(&htim1,TIM_CHANNEL_1);
@@ -321,6 +321,22 @@ void oled_proc()
 
 		switch(Tiao_Who)
 		{
+				case   NO_TIAO:
+												OLED_ShowString(00,00,"Time",12);                    
+//												OLED_ShowSignedNum(60,00,AimVelocity,4,12);
+											//=============  =======================//	
+												OLED_ShowString(00,12,"route",12);                   
+//												OLED_ShowSignedNum(60,12,Encoder_Left,5,12);               
+											//=============  =======================//	
+												OLED_ShowString(00,24,"Fuc",12);
+												OLED_ShowNum(60,24,whichFuction,1,12);   							 		
+											//=============  =======================//	
+												OLED_ShowString(00,36,"RXreg",12);
+												OLED_ShowNum(60,36,RRRXnum_reg,3,12);	
+												OLED_ShowString(00,36,"aim_V",12);
+												OLED_ShowSignedNum(60,36,AimVelocity,4,12);													
+												OLED_Refresh();		
+												break;					
 				case TIAO_VELp:
 												OLED_ShowString(00,00,"V:",12);               OLED_ShowString(84,00,"VP",12);        
 												OLED_ShowSignedNum(24,00,AimVelocity,4,12);
@@ -336,6 +352,7 @@ void oled_proc()
 												OLED_Refresh();		
 												break;
 				
+				
 				case TIAO_GP:
 												OLED_ShowString(00,00,"V:",12);                   OLED_ShowString(84,00,"GP",12);     
 												OLED_ShowSignedNum(24,00,AimVelocity,4,12);
@@ -350,9 +367,23 @@ void oled_proc()
 												OLED_ShowSignedNum(36,36,Gray_KP,3,12);	
 											//=============  =======================//	
 												OLED_ShowString(00,48,"GD:",12);
-												OLED_ShowSignedNum(36,48,Gray_KD,3,12);				
+												OLED_ShowFNum(36,48,Gray_KD,12);				
 												OLED_Refresh();					
 												break;
+				
+//												OLED_ShowNum(00,24,xun[0],1,12);               OLED_ShowString(84,00,"08",12);     
+//												OLED_ShowNum(12,24,xun[1],1,12); 
+//											//=============  =======================//	
+//												OLED_ShowNum(24,24,xun[2],1,12);                 
+//												OLED_ShowNum(36,24,xun[3],1,12);               
+//											//=============  =======================//	
+//												OLED_ShowNum(48,24,xun[4],1,12);                 
+//												OLED_ShowNum(60,24,xun[5],1,12);      							 		
+//											//=============  =======================//	
+//												OLED_ShowNum(72,24,xun[6],1,12);                 
+//												OLED_ShowNum(84,24,xun[7],1,12);     		
+//												OLED_Refresh();					
+//												break;
 				case TIAO_GD:											
 												OLED_ShowString(00,00,"V:",12);                  OLED_ShowString(84,00,"GD",12);  			    
 												OLED_ShowSignedNum(24,00,AimVelocity,4,12);
@@ -367,7 +398,9 @@ void oled_proc()
 												OLED_ShowSignedNum(36,36,Gray_KP,3,12);	
 											//=============  =======================//	
 												OLED_ShowString(00,48,"GD:",12);
-												OLED_ShowSignedNum(36,48,Gray_KD,3,12);				
+												OLED_ShowFNum(36,48,Gray_KD,12);	
+												
+												OLED_ShowNum(80,36,test111,3,12);					
 												OLED_Refresh();	
 												break;
 			}
@@ -404,7 +437,7 @@ void loop(void)
 	UART_Proc();
 	key_process();
 	oled_proc();
-
+	FuctionSelect();
 }
 
 /**************************************************************************
@@ -425,11 +458,11 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 	  PWM_out= Velocity_out;
 		
 		// 3.把控制输出量加载到电机上，完成最终控制
-//			Moto1 = PWM_out+Gray_PID(Scale); // 左电机
-//      Moto2 = PWM_out-Gray_PID(Scale); // 右电机 
+			Moto1 = PWM_out+Gray_PID(Scale); // 左电机
+      Moto2 = PWM_out-Gray_PID(Scale); // 右电机 
 		
-			Moto1 = PWM_out; // 左电机
-      Moto2 = PWM_out; // 右电机
+//			Moto1 = PWM_out; // 左电机
+//      Moto2 = PWM_out; // 右电机
 		
       Limit(&Moto1,&Moto2);     // PWM限幅 
 		  Set_Pwm(Moto1,Moto2);        // 加载到电机上
@@ -437,11 +470,13 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 	if(htim->Instance == TIM5)//0.1秒
 	{
 //			Motor_speed_process(&motorA_speed,&motorB_speed,&total_time);
-
+			if(stop_10sEN != 0){
+				stop_10sEN++;if(stop_10sEN == 100) {MediumVelocity();stop_10sEN =0;}
+			}
 	}
 	if(htim->Instance == TIM6)//10ms
 	{
-		ReadKey();//读按键
+			key_serv_long();
 	}
 }
 
@@ -450,11 +485,50 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 入口：Med:机械中值(期望角度)，Angle:真实角度，gyro_Y:真实角速度
 出口：PMW数值
 ******************************************************************************/
-int Gray_PID(int bias)
+float Gray_PID(int bias)
 {
-	int res = Gray_KP*bias+Gray_KD*(bias-last_bias);
+	float res = Gray_KP*bias+Gray_KD*(bias-last_bias);
 	last_bias = bias;
 	return res;
+}
+void FuctionInit(void)
+{
+	countLongline = 0;
+	countShortline =0;
+	VelocitySel = 0;
+	stop_10sEN = 0;
+	tx_lcd = 0;
+	MediumVelocity();
+	if(whichFuction == 4) FastVelocity();
+}
+void VelocityStop_10s(void)
+{
+	VelocityStop();
+	stop_10sEN = 1;
+}
+void VelocityStop(void)
+{
+		AimVelocity	 = 0;
+		Gray_KP = 0;
+		Gray_KD = 0;
+}
+void SlowVelocity(void)
+{
+		AimVelocity	 = 400;
+		Gray_KP = 25;
+		Gray_KD = 0.14;
+}
+void MediumVelocity(void)
+{
+		AimVelocity	 = 1000;
+		Gray_KP = 30;
+		Gray_KD = 0.22;
+}
+void FastVelocity(void)
+{
+		AimVelocity	 = 0;
+		Gray_KP = 0;
+		Gray_KD = 0;
 }
 /********************************************************************* 
 速度环PI控制器：Kp*Ek+Ki*Ek_S(Ek_S：偏差的积分)
@@ -511,25 +585,6 @@ void Contrl(void)
 
 
 
-/**************************************************************************
-函数功能：电机异常关闭函数
-入口参数：角度
-返回  值：1：关闭，0：不关闭
-**************************************************************************/	 		
-u8 Stop(signed int angle)
-{
-	    u8 temp=0;
-			if(angle<-50||angle>50)
-			{	                                //===倾角大于40度关闭电机
-				temp=1;                   		   //===Flag_Stop置1关闭电机
-				Moto1 = 0;
-				Moto2 = 0;
-      }
-	
-		return temp;
-}
-
-
 
 /**************************************************************************
 函数功能：电机转动控制函数
@@ -583,44 +638,10 @@ void Limit(int *motoA,int *motoB)
 //串口空闲中断回调函数
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)	
 {
-	if(strcmp(Usart2_RRRX_Buf,"1")==0)
+	if(huart->Instance==USART2)
 	{
-
+		RRRXnum = Usart2_RRRX_Buf[0] - 48;
+//		sprintf(Usart2_TTTX_Buf,"num:%d",RRRXnum);
+//					HAL_UART_Transmit(&huart2,(uint8_t *)Usart2_TTTX_Buf,strlen(Usart2_TTTX_Buf),50);							
 	}
-	else if(strcmp(Usart2_RRRX_Buf,"2")==0)
-	{
-
-	
-		
-	}
-	else if(strcmp(Usart2_RRRX_Buf,"3")==0)
-	{
-
-
-		
-	}	
-	else if(strcmp(Usart2_RRRX_Buf,"4")==0)
-	{
-
-
-		
-	}	
-	else if(strcmp(Usart2_RRRX_Buf,"5")==0)
-	{
-
-		
-		
-	}		
-	else if(strcmp(Usart2_RRRX_Buf,"6")==0)
-	{
-
-
-	}	
-	else if(strcmp(Usart2_RRRX_Buf,"7")==0)
-	{
-		
-		
-
-	}			
-			
 }

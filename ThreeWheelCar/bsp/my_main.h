@@ -26,9 +26,20 @@
 
 void set_up(void);
 void loop(void);
-int Gray_PID(int bias);
+float Gray_PID(int bias);
 extern uint8_t xun[];
 extern uint8_t ABCDE_flag;
+void UART_Proc(void);
+int Vertical(float Angle,float Gyro_Y);			 				//直立环
+int GetVelocity(int Encoder_left,int Encoder_right);				//速度环
+void Limit(int *motoA,int *motoB);  //电机速度限幅
+void Set_Pwm(int Moto1,int Moto2);	//控制PWM最终输出
 
+void FuctionInit(void);
+void VelocityStop_10s(void);
+void VelocityStop(void);
+void SlowVelocity(void);
+void MediumVelocity(void);
+void FastVelocity(void);
 #endif
 
