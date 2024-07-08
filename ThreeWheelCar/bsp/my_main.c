@@ -44,12 +44,16 @@ float test_num_GD= 0.02;
 //----循迹-----
 uint8_t Black_miss_flag = 0;
 int last_bias;
+int last_Gray;
+int Gray_Out;
+uint8_t times=0;
 int8_t Scale=0;
-int Gray_KP=25;
-float Gray_KD=-0.14;
-// 400,GP 25 , GD 0.14
-//1000,GP 30,  GD 0.22
-
+int Gray_KP=30;
+uint8_t _if_black=0;
+float Gray_KD=-0.22;
+// 400,GP 25 , GD -0.14
+//1000,GP 30,  GD -0.22
+//1600 GP 38,  GD -0.20
 //计算距离和时间
 double motorA_speed,motorB_speed;
 double total_time;
@@ -73,7 +77,6 @@ uint8_t countLongline = 0;
 uint8_t countShortline = 0;
 uint8_t stopEN = 0;
 
-uint8_t OKOKBegin = 0;
 
 
 #define IDLE              0
@@ -111,6 +114,7 @@ void FuctionBase1(void)
 {
 		switch(RRRXnum)
 		{
+			case GREENCIRCLE:MediumVelocity();
 			case LONELINE:countLongline++;if(countLongline == 2) {VelocityStop();countLongline = 0;}//stop 
 				break;
 			default:
@@ -123,6 +127,7 @@ void FuctionBase2(void)
 	
 		switch(RRRXnum)
 		{
+			case GREENCIRCLE:MediumVelocity();
 			case LONELINE:
 										countLongline++;if(countLongline == 3) {VelocityStop(); countLongline = 0;VelocitySel =0;}
 										FindBlueyellowTriEN = 0;
@@ -173,13 +178,14 @@ void FuctionBase3(void)
 {
 		switch(RRRXnum)
 		{
+			case GREENCIRCLE:MediumVelocity();			
 			case LONELINE:
 										countLongline++;if(countLongline == 3) {VelocityStop(); countLongline = 0;}
 										countShortline = 0;
-										if(countLongline == 2)VelocityStop_10s();
+										if(countLongline == 2)stop_10sEN = 1;//跑个0.5s再停10s，第二圈A区域
 										break;
 			case SHORTLINE:countShortline++;
-										if((countLongline == 1) && (countShortline == 1))VelocityStop_10s();									
+										if((countLongline == 1) && (countShortline == 1))stop_10sEN = 1;	//跑个0.5s再停10s，第一圈B区域								
 										break;	
 			default: break;
 		}
@@ -189,6 +195,7 @@ void FuctionImprove1(void)//一圈
 {
 		switch(RRRXnum)
 		{
+			case GREENCIRCLE:MediumVelocity();			
 			case LONELINE:
 										countShortline = 0;
 										tx_lcd = 5;//tx_lcd 即其余线清0，只留长线
@@ -205,6 +212,7 @@ void FuctionImprove2(void)
 {
 		switch(RRRXnum)
 		{
+			case GREENCIRCLE:MediumVelocity();			
 			case REDCIRCLE:VelocityStop(); break;
 			case 				 1:SlowVelocity(); break;
 			case 				 2:SlowVelocity(); break;			
@@ -223,6 +231,7 @@ void FuctionImprove3(void)
 {
 		switch(RRRXnum)
 		{
+			case GREENCIRCLE:MediumVelocity();			
 			case LONELINE:countLongline++;if(countLongline == 2) {VelocityStop(); countLongline = 0;}//先假设跑一圈停止
 										break;
 
@@ -232,10 +241,8 @@ void FuctionImprove3(void)
 		RRRXnum = RXIDLE;	
 }
 
-void FuctionSelect(void)
+void FuctionSelect(void)//是别到东西才会改变GP，GD，线才会++--
 {
-	if(OKOKBegin == 0) return;
-	OKOKBegin = 0;
 	switch (whichFuction){
 		case IDLE:FuctionIDLE();break;//慢速度运动
 		case BASE_1:FuctionBase1();break;
@@ -244,8 +251,7 @@ void FuctionSelect(void)
 		case IMPROVE_1:FuctionImprove1();break;		
 		case IMPROVE_2:FuctionImprove2();break;		
 		case IMPROVE_3:FuctionImprove3();break;	
-		default:
-					break;
+		default:break;
 	}
 }
 
@@ -284,9 +290,8 @@ void key_process(void)
 	}		
 	else if(bkey[3].short_flag == 1)
 	{
-		 FuctionInit();
-		 OKOKBegin = 1;		//所有标志位都要清0
-		 sprintf(Usart2_TTTX_Buf,"1");
+		 FuctionInit();//初始化重新开始
+		 sprintf(Usart2_TTTX_Buf,"%d",whichFuction + 10);
 		 HAL_UART_Transmit(&huart2,(uint8_t *)Usart2_TTTX_Buf,strlen(Usart2_TTTX_Buf),50);			
 		
 		 bkey[3].short_flag = 0;
@@ -323,7 +328,7 @@ void oled_proc()
 		{
 				case   NO_TIAO:
 												OLED_ShowString(00,00,"Time",12);                    
-//												OLED_ShowSignedNum(60,00,AimVelocity,4,12);
+												OLED_ShowFNum(60,00,total_time,12);		
 											//=============  =======================//	
 												OLED_ShowString(00,12,"route",12);                   
 //												OLED_ShowSignedNum(60,12,Encoder_Left,5,12);               
@@ -446,32 +451,50 @@ void loop(void)
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
 
-  if(htim->Instance == TIM2)//TIM2设置为10ms中断
+if(htim->Instance == TIM2)//TIM2设置为10ms中断
   {
    // 电机是相对安装，刚好相差180度，为了编码器输出极性一致，就需要对其中一个取反
-	  Encoder_Left  =  Read_Encoder(4);		//读取编码器测量的电机转速
-		Encoder_Right =   Read_Encoder(3);		
+      Encoder_Left  =  Read_Encoder(4);        //读取编码器测量的电机转速
+        Encoder_Right =   Read_Encoder(3);        
   // 2.将数据压入闭环控制中，计算出控制输出量
-		Velocity_out = GetVelocity(Encoder_Left,Encoder_Right);// 速度环输出误差
-		Scale = Read_8PIN();//读灰度调用pid生成pwm
-		//------------最终输出----------------
-	  PWM_out= Velocity_out;
-		
-		// 3.把控制输出量加载到电机上，完成最终控制
-			Moto1 = PWM_out+Gray_PID(Scale); // 左电机
-      Moto2 = PWM_out-Gray_PID(Scale); // 右电机 
-		
-//			Moto1 = PWM_out; // 左电机
-//      Moto2 = PWM_out; // 右电机
-		
-      Limit(&Moto1,&Moto2);     // PWM限幅 
-		  Set_Pwm(Moto1,Moto2);        // 加载到电机上
+        Velocity_out = GetVelocity(Encoder_Left,Encoder_Right);// 速度环输出误差
+        Scale = Read_8PIN();//读灰度调用pid生成pwm
+        //------------最终输出----------------
+      PWM_out= Velocity_out;
+        
+        Gray_Out=Gray_PID(Scale);//读出灰度环
+        // 3.把控制输出量加载到电机上，完成最终控制
+        if((xun[2]==0&&xun[3]==0&&xun[4]==0) || (xun[3]==0&&xun[4]==0&&xun[5]==0))//如果读到中间三黑，则只加载前一段时间的平均灰度环
+        {
+            _if_black=1;
+            Moto1 = PWM_out+last_Gray;
+            Moto2 = PWM_out-last_Gray;
+        }
+        else//如果正常循迹，就正常计算灰度环
+        {
+            Moto1 = PWM_out+Gray_Out; // 左电机
+      Moto2 = PWM_out-Gray_Out; // 右电机 
+        }
+        
+					Limit(&Moto1,&Moto2);     // PWM限幅 
+          Set_Pwm(Moto1,Moto2);        // 加载到电机上
+        
+        if(_if_black==0)//如果不是黑（也就是在正常循迹），就时刻记录之前的灰度输出值
+        {
+            last_Gray=Paixu(&times,Gray_Out);
+        }
+        else//如果现在读黑，就停止记录并复位
+        {
+            _if_black=0;
+        }
   }
 	if(htim->Instance == TIM5)//0.1秒
 	{
-//			Motor_speed_process(&motorA_speed,&motorB_speed,&total_time);
+			Motor_speed_process(&motorA_speed,&motorB_speed,&total_time);
 			if(stop_10sEN != 0){
-				stop_10sEN++;if(stop_10sEN == 100) {MediumVelocity();stop_10sEN =0;}
+				stop_10sEN++;
+				if(stop_10sEN ==   6)  {VelocityStop();}
+				if(stop_10sEN == 116) {MediumVelocity();stop_10sEN =0;}//10.5s
 			}
 	}
 	if(htim->Instance == TIM6)//10ms
@@ -493,6 +516,7 @@ float Gray_PID(int bias)
 }
 void FuctionInit(void)
 {
+	FindBlueyellowTriEN =0;
 	countLongline = 0;
 	countShortline =0;
 	VelocitySel = 0;
@@ -501,11 +525,9 @@ void FuctionInit(void)
 	MediumVelocity();
 	if(whichFuction == 4) FastVelocity();
 }
-void VelocityStop_10s(void)
-{
-	VelocityStop();
-	stop_10sEN = 1;
-}
+//void VelocityStop_10s(void)//跑个0.5s再停10s，
+//{
+//}
 void VelocityStop(void)
 {
 		AimVelocity	 = 0;

@@ -36,7 +36,7 @@ void Limit(int *motoA,int *motoB);  //电机速度限幅
 void Set_Pwm(int Moto1,int Moto2);	//控制PWM最终输出
 
 void FuctionInit(void);
-void VelocityStop_10s(void);
+//void VelocityStop_10s(void);
 void VelocityStop(void);
 void SlowVelocity(void);
 void MediumVelocity(void);
