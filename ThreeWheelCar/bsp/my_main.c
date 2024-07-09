@@ -48,9 +48,9 @@ int last_Gray;
 int Gray_Out;
 uint8_t times=0;
 int8_t Scale=0;
-int Gray_KP=30;
 uint8_t _if_black=0;
-float Gray_KD=-0.22;
+int Gray_KP=0;
+float Gray_KD=0;
 // 400,GP 25 , GD -0.14
 //1000,GP 30,  GD -0.22
 //1600 GP 38,  GD -0.20
@@ -90,7 +90,7 @@ uint8_t stopEN = 0;
 #define BASE_2            2
 #define BASE_3            3
 #define IMPROVE_1         4
-#define IMPROVE_2         5
+#define IMPROVE_2         5//////notice! notice!notice!没有包含二维码为0的情况
 #define IMPROVE_3         6
 uint8_t whichFuction = IDLE;
 //基础1
@@ -238,7 +238,7 @@ void FuctionImprove2(void)
 			case 				 6:MediumVelocity(); break;			
 			case 				 7:FastVelocity(); break;
 			case 				 8:FastVelocity(); break;
-			case 				 9:FastVelocity(); break;	/////没有包含二维码为0的情况
+			case 				 9:FastVelocity(); break;	/////notice! notice!notice!没有包含二维码为0的情况
 			default				:break;
 		}
 		RRRXnum = RXIDLE;	
@@ -251,7 +251,7 @@ void FuctionImprove3(void)
 			case LONELINE:countLongline++;if(countLongline == 2) {VelocityStop(); countLongline = 0;}//先假设跑一圈停止
 										break;
 
-			case REDTRI:/*转向*/ break;
+			case REDTRI:ChangeDirection();turnEN = 1;  break;
 			default: break;
 		}
 		RRRXnum = RXIDLE;	
@@ -265,7 +265,7 @@ void FuctionSelect(void)//是别到东西才会改变GP，GD，线才会++--
 		case BASE_2:FuctionBase2();break;
 		case BASE_3:FuctionBase3();break;
 		case IMPROVE_1:FuctionImprove1();break;		
-		case IMPROVE_2:FuctionImprove2();break;		
+		case IMPROVE_2:FuctionImprove2();break;		///notice! notice!notice!没有包含二维码为0的情况
 		case IMPROVE_3:FuctionImprove3();break;	
 		default:break;
 	}
@@ -307,9 +307,10 @@ void key_process(void)
 	else if(bkey[3].short_flag == 1)
 	{
 		 FuctionInit();//初始化重新开始
-		 sprintf(Usart2_TTTX_Buf,"%d",whichFuction + 10);
+		 sprintf(Usart2_TTTX_Buf,"10");
 		 HAL_UART_Transmit(&huart2,(uint8_t *)Usart2_TTTX_Buf,strlen(Usart2_TTTX_Buf),50);			
-		
+//		turnEN = 1;
+//		ChangeDirection();
 		 bkey[3].short_flag = 0;
 	}		
 	else if(bkey[1].long_flag == 1)
@@ -350,12 +351,12 @@ void oled_proc()
 //												OLED_ShowSignedNum(60,12,Encoder_Left,5,12);               
 											//=============  =======================//	
 												OLED_ShowString(00,24,"Fuc",12);
-												OLED_ShowNum(60,24,whichFuction,1,12);   							 		
+												OLED_ShowNum(60,24,whichFuction,1,12);  	OLED_ShowString(72,24,"T",12);     OLED_ShowNum(84,24,turnEN,3,12);					 		
 											//=============  =======================//	
 												OLED_ShowString(00,36,"RXreg",12);
 												OLED_ShowNum(60,36,RRRXnum_reg,3,12);	
-												OLED_ShowString(00,36,"aim_V",12);
-												OLED_ShowSignedNum(60,36,AimVelocity,4,12);													
+												OLED_ShowString(00,48,"aim_V",12);
+												OLED_ShowSignedNum(60,48,AimVelocity,4,12);							
 												OLED_Refresh();		
 												break;					
 				case TIAO_VELp:
@@ -452,7 +453,6 @@ void set_up(void)
 
 void loop(void)
 {
-	UART_Proc();
 	key_process();
 	oled_proc();
 	FuctionSelect();
@@ -464,56 +464,67 @@ void loop(void)
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
 
-if(htim->Instance == TIM2)//TIM2设置为10ms中断
-  {
-   // 电机是相对安装，刚好相差180度，为了编码器输出极性一致，就需要对其中一个取反
-      Encoder_Left  =  Read_Encoder(4);        //读取编码器测量的电机转速
-        Encoder_Right =   Read_Encoder(3);        
-  // 2.将数据压入闭环控制中，计算出控制输出量
-        Velocity_out = GetVelocity(Encoder_Left,Encoder_Right);// 速度环输出误差
-        Scale = Read_8PIN();//读灰度调用pid生成pwm
-        //------------最终输出----------------
-      PWM_out= Velocity_out;
-        
-        Gray_Out=Gray_PID(Scale);//读出灰度环
-        // 3.把控制输出量加载到电机上，完成最终控制
-        if((xun[2]==0&&xun[3]==0&&xun[4]==0) || (xun[3]==0&&xun[4]==0&&xun[5]==0))//如果读到中间三黑，则只加载前一段时间的平均灰度环
-        {
-            _if_black=1;
-            Moto1 = PWM_out+last_Gray;
-            Moto2 = PWM_out-last_Gray;
-        }
-        else//如果正常循迹，就正常计算灰度环
-        {
-            Moto1 = PWM_out+Gray_Out; // 左电机
-      Moto2 = PWM_out-Gray_Out; // 右电机 
-        }
-        
-					Limit(&Moto1,&Moto2);     // PWM限幅 
-          Set_Pwm(Moto1,Moto2);        // 加载到电机上
-        
-        if(_if_black==0)//如果不是黑（也就是在正常循迹），就时刻记录之前的灰度输出值
-        {
-            last_Gray=Paixu(&times,Gray_Out);
-        }
-        else//如果现在读黑，就停止记录并复位
-        {
-            _if_black=0;
-        }
-  }
-	if(htim->Instance == TIM5)//0.1秒
-	{
-			Motor_speed_process(&motorA_speed,&motorB_speed,&total_time);
-			if(stop_10sEN != 0){
-				stop_10sEN++;
-				if(stop_10sEN ==   6)  {VelocityStop();}
-				if(stop_10sEN == 116) {MediumVelocity();stop_10sEN =0;}//10.5s
-			}
-	}
-	if(htim->Instance == TIM6)//10ms
-	{
-			key_serv_long();
-	}
+	if(htim->Instance == TIM2)//TIM2设置为10ms中断
+		{
+		 // 电机是相对安装，刚好相差180度，为了编码器输出极性一致，就需要对其中一个取反
+				Encoder_Left  =  Read_Encoder(4);        //读取编码器测量的电机转速
+					Encoder_Right =   Read_Encoder(3);        
+		// 2.将数据压入闭环控制中，计算出控制输出量
+					Velocity_out = GetVelocity(Encoder_Left,Encoder_Right);// 速度环输出误差
+					Scale = Read_8PIN();//读灰度调用pid生成pwm
+					//------------最终输出----------------
+				PWM_out= Velocity_out;
+					
+					Gray_Out=Gray_PID(Scale);//读出灰度环
+					// 3.把控制输出量加载到电机上，完成最终控制
+					if(turnEN != 0)
+					{
+						Moto1 = 800;Moto2 = -800;
+					}
+					else{						
+						if((xun[2]==0&&xun[3]==0&&xun[4]==0) || (xun[3]==0&&xun[4]==0&&xun[5]==0))//如果读到中间三黑，则只加载前一段时间的平均灰度环
+						{
+								_if_black=1;
+								Moto1 = PWM_out+last_Gray;
+								Moto2 = PWM_out-last_Gray;
+						}
+						else//如果正常循迹，就正常计算灰度环
+						{
+								Moto1 = PWM_out+Gray_Out; // 左电机
+								Moto2 = PWM_out-Gray_Out; // 右电机 
+						}						
+							Limit(&Moto1,&Moto2);     // PWM限幅 
+							Set_Pwm(Moto1,Moto2);        // 加载到电机上
+						
+						if(_if_black==0)//如果不是黑（也就是在正常循迹），就时刻记录之前的灰度输出值
+						{
+								last_Gray=Paixu(&times,Gray_Out);
+						}
+						else//如果现在读黑，就停止记录并复位
+						{
+								_if_black=0;
+						}
+					}
+							Limit(&Moto1,&Moto2);     // PWM限幅 
+							Set_Pwm(Moto1,Moto2);        // 加载到电机上					
+		}
+		if(htim->Instance == TIM5)//0.1秒
+		{
+				Motor_speed_process(&motorA_speed,&motorB_speed,&total_time);
+				if(stop_10sEN != 0){
+					stop_10sEN++;
+					if(stop_10sEN ==   6)  {VelocityStop();}
+					if(stop_10sEN == 116) {MediumVelocity();stop_10sEN =0;}//10.5s
+				}
+				if(turnEN != 0){
+					turnEN++;
+					if(turnEN == 20){turnEN = 0; kp=kp_val,ki=kp_val/200;MediumVelocity();}
+				}
+		}
+		if(htim->Instance == TIM6)//10ms
+		{
+				key_serv_long();
+		}
 }
 
 /*************************************************************************** 
@@ -538,9 +549,14 @@ void FuctionInit(void)
 	MediumVelocity();
 	if(whichFuction == 4) FastVelocity();
 }
-//void VelocityStop_10s(void)//跑个0.5s再停10s，
-//{
-//}
+void ChangeDirection(void)
+{
+  kp=0,ki=0;
+	Gray_KP = 0;
+	Gray_KD = 0;	
+	Moto1 = 800;
+	Moto2 = -800;
+}
 void VelocityStop(void)
 {
 		AimVelocity	 = 0;
@@ -675,8 +691,6 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 {
 	if(huart->Instance==USART2)
 	{
-		RRRXnum = Usart2_RRRX_Buf[0] - 48;
-//		sprintf(Usart2_TTTX_Buf,"num:%d",RRRXnum);
-//					HAL_UART_Transmit(&huart2,(uint8_t *)Usart2_TTTX_Buf,strlen(Usart2_TTTX_Buf),50);							
+		RRRXnum = Usart2_RRRX_Buf[0] - 48;			
 	}
 }

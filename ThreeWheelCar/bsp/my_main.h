@@ -40,6 +40,7 @@ void FuctionInit(void);
 void VelocityStop(void);
 void SlowVelocity(void);
 void MediumVelocity(void);
+void ChangeDirection(void);
 void FastVelocity(void);
 #endif
 
