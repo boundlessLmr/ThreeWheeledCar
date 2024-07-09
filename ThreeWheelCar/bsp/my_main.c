@@ -54,7 +54,9 @@ float Gray_KD=-0.22;
 // 400,GP 25 , GD -0.14
 //1000,GP 30,  GD -0.22
 //1600 GP 38,  GD -0.20
-//计算距离和时间
+
+
+//-----------计算距离和时间-----------
 double motorA_speed,motorB_speed;
 double total_time;
 double distance;
@@ -62,6 +64,10 @@ double distance;
 
 char Usart2_RRRX_Buf[50];  //串口接收数据缓存buf
 char Usart2_TTTX_Buf[50];  //串口发送数据缓存buf
+
+char Usart1_RRRX_Buf[50];  //串口接收数据缓存buf
+char Usart1_TTTX_Buf[50];  //串口发送数据缓存buf
+
 
 #define RXIDLE              20
 #define LONELINE						10
@@ -199,9 +205,19 @@ void FuctionImprove1(void)//一圈
 			case LONELINE:
 										countShortline = 0;
 										tx_lcd = 5;//tx_lcd 即其余线清0，只留长线
+										sprintf(Usart1_TTTX_Buf,"va0.val=%d\xff\xff\xff",tx_lcd);
+										HAL_UART_Transmit(&huart1,(uint8_t *)Usart1_TTTX_Buf,strlen(Usart1_TTTX_Buf),50);		
+										tx_lcd = 0;			
 										break;
-			case SHORTLINE:countShortline++;
-										tx_lcd = countShortline;					
+			case SHORTLINE:
+										if     ( distance>=55 && distance <205)  tx_lcd = 1;
+										else if( distance>=205 && distance <366) tx_lcd = 2;
+										else if( distance>=366 && distance <482) tx_lcd = 3;			
+										else if( distance>=482 && distance <585) tx_lcd = 4;	
+										else ;
+										sprintf(Usart1_TTTX_Buf,"va0.val=%d\xff\xff\xff",tx_lcd);
+										HAL_UART_Transmit(&huart1,(uint8_t *)Usart1_TTTX_Buf,strlen(Usart1_TTTX_Buf),50);	
+										tx_lcd = 0;
 										break;	
 			case REDCIRCLE:VelocityStop();break;
 			default: break;
@@ -414,9 +430,6 @@ void oled_proc()
 void set_up(void)
 {
   //启动TIM初始化
-
-	
-	
    HAL_TIM_Base_Start_IT(&htim2);//每10ms触发一次中断 优先级最高的中断
 	 HAL_TIM_Base_Start_IT(&htim6);//每10ms触发一次中断 优先级次之
 	 HAL_TIM_Base_Start_IT(&htim5);//优先级最低的中断，因为周期很长0.1秒，主要作用是定时	
