@@ -256,7 +256,6 @@ void FuctionImprove3(void)
 		}
 		RRRXnum = RXIDLE;	
 }
-
 void FuctionSelect(void)//是别到东西才会改变GP，GD，线才会++--
 {
 	switch (whichFuction){
@@ -307,10 +306,8 @@ void key_process(void)
 	else if(bkey[3].short_flag == 1)
 	{
 		 FuctionInit();//初始化重新开始
-		 sprintf(Usart2_TTTX_Buf,"10");
+		 sprintf(Usart2_TTTX_Buf,"0");
 		 HAL_UART_Transmit(&huart2,(uint8_t *)Usart2_TTTX_Buf,strlen(Usart2_TTTX_Buf),50);			
-//		turnEN = 1;
-//		ChangeDirection();
 		 bkey[3].short_flag = 0;
 	}		
 	else if(bkey[1].long_flag == 1)
@@ -600,8 +597,6 @@ int GetVelocity(int Encoder_left,int Encoder_right)
 	// 3.对速度偏差积分出位移,遥控的速度通过积分融入速度控制器，减缓速度突变对直立控制的影响	
   Encoder_Integral += Encoder-Movement;	
 
-
-
 	// 4.积分限幅	
 	if(Encoder_Integral>3000)  	Encoder_Integral=3000;   
 	if(Encoder_Integral<-3000)	   Encoder_Integral=-3000;           	
@@ -615,8 +610,6 @@ int GetVelocity(int Encoder_left,int Encoder_right)
 
 
 }
-
-
 
 /*************************************************************************** 
 函数功能：控制电机
@@ -632,10 +625,6 @@ void Contrl(void)
 	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_1, AIN2);
 
 }
-
-
-
-
 
 /**************************************************************************
 函数功能：电机转动控制函数

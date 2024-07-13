@@ -113,7 +113,7 @@ I (../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_pwr.h)(0x661BE71E)
 I (../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_tim.h)(0x661BE71E)
 I (../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_tim_ex.h)(0x661BE71E)
 I (../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_uart.h)(0x661BE71E)
-F (..\bsp\my_main.c)(0x668D1CCB)(--c99 -c --cpu Cortex-M3 -g -O0 --apcs=interwork --split_sections -I ../Core/Inc -I ../Drivers/STM32F1xx_HAL_Driver/Inc -I ../Drivers/STM32F1xx_HAL_Driver/Inc/Legacy -I ../Drivers/CMSIS/Device/ST/STM32F1xx/Include -I ../Drivers/CMSIS/Include -I ../bsp -I ../bsp/eMPL --diag_suppress=188,177,1-I.\RTE\_text-ID:\work_soft\KeilCubeMxVs\MDK\Packs\ARM\CMSIS\5.9.0\CMSIS\Core\Include-ID:\work_soft\KeilCubeMxVs\MDK\Packs\Keil\STM32F1xx_DFP\2.4.1\Device\Include-D__UVISION_VERSION="538" -D_RTE_ -DSTM32F10X_HD -D_RTE_ -DUSE_HAL_DRIVER -DSTM32F103xE-o text\my_main.o --omf_browse text\my_main.crf --depend text\my_main.d)
+F (..\bsp\my_main.c)(0x668D48C6)(--c99 -c --cpu Cortex-M3 -g -O0 --apcs=interwork --split_sections -I ../Core/Inc -I ../Drivers/STM32F1xx_HAL_Driver/Inc -I ../Drivers/STM32F1xx_HAL_Driver/Inc/Legacy -I ../Drivers/CMSIS/Device/ST/STM32F1xx/Include -I ../Drivers/CMSIS/Include -I ../bsp -I ../bsp/eMPL --diag_suppress=188,177,1-I.\RTE\_text-ID:\work_soft\KeilCubeMxVs\MDK\Packs\ARM\CMSIS\5.9.0\CMSIS\Core\Include-ID:\work_soft\KeilCubeMxVs\MDK\Packs\Keil\STM32F1xx_DFP\2.4.1\Device\Include-D__UVISION_VERSION="538" -D_RTE_ -DSTM32F10X_HD -D_RTE_ -DUSE_HAL_DRIVER -DSTM32F103xE-o text\my_main.o --omf_browse text\my_main.crf --depend text\my_main.d)
 I (..\bsp\my_main.h)(0x668D04E4)
 I (D:\work_soft\KeilCubeMxVs\MDK\Core\ARM\ARMCC\include\math.h)(0x57F606B6)
 I (..\bsp\mpu6050.h)(0x66483EE2)
